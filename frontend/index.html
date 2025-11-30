@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Smart Task Analyzer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 min-h-screen py-10">
+  <div class="max-w-5xl mx-auto p-6 bg-white rounded-xl shadow-lg">
+    <h1 class="text-4xl font-bold text-center text-indigo-700 mb-8">Smart Task Analyzer</h1>
+
+    <div class="grid md:grid-cols-2 gap-8">
+      <!-- Input -->
+      <div class="bg-white p-6 rounded-lg border rounded-lg">
+        <h2 class="text-2xl font-semibold mb-4">Add Tasks</h2>
+        
+        <div id="singleTaskForm" class="space-y-4">
+          <!-- Simple form fields -->
+        </div>
+
+        <button onclick="addTaskField()" class="mt-4 text-indigo-600">+ Add another task</button>
+
+        <div class="mt-8">
+          <label class="block text-lg font-medium mb-2">Or paste JSON array:</label>
+          <textarea id="jsonInput" rows="10" class="w-full p-3 border rounded-lg font-mono text-sm"></textarea>
+        </div>
+
+        <div class="mt-6 flex gap-4">
+          <select id="strategy" class="px-4 py-2 border rounded-lg">
+            <option value="smart">Smart Balance (Recommended)</option>
+            <option value="fastest">Fastest Wins</option>
+            <option value="impact">High Impact</option>
+            <option value="deadline">Deadline Driven</option>
+          </select>
+          <button onclick="analyze()" class="px-8 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
+            Analyze Tasks
+          </button>
+        </div>
+      </div>
+
+      <!-- Output -->
+      <div id="results" class="space-y-4"></div>
+    </div>
+  </div>
+
+<script>
+const sampleTasks = `[
+  {"title": "Fix login bug", "due_date": "2025-11-28", "estimated_hours": 2, "importance": 9, "dependencies": []},
+  {"title": "Write docs", "due_date": "2025-12-05", "estimated_hours": 4, "importance":  "importance": 7, "dependencies": ["0"]},
+  {"title": "Refactor payment", "due_date": "2025-12-10", "estimated_hours": 8, "importance": 8, "dependencies": []}
+]`;
+
+document.getElementById("jsonInput").value = sampleTasks;
+
+async function analyze() {
+  const json = document.getElementById("jsonInput").value;
+  const strategy = document.getElementById("strategy").value;
+  let tasks;
+  try { tasks = JSON.parse(json); } catch(e) { alert("Invalid JSON"); return; return; }
+
+  const res = await fetch("/api/tasks/analyze/", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({tasks, strategy})
+  });
+  const data = await res.json();
+  if (data.error) { alert(data.error); return; }
+
+  const container = document.getElementById("results");
+  container.innerHTML = "<h2 class='text-2xl font-bold mb-6'>Prioritized Tasks</h2>";
+  
+  data.tasks.forEach(t => {
+    const urgencyClass = t.score > 120 ? "bg-red-100 border-red-400" : t.score > 80 ? "bg-yellow-100 border-yellow-400" : "bg-green-100 border-green-400";
+    
+    const card = `
+      <div class="p-5 border-2 rounded-lg ${urgencyClass}">
+        <div class="flex justify-between items-start">
+          <h3 class="text-xl font-bold">${t.title}</h3>
+          <span class="text-2xl font-bold text-indigo-700">${t.score}</span>
+        </div>
+        <p class="text-gray-600 mt-2"><em>${t.explanation}</em></p>
+        <div class="mt-3 text-sm text-gray-500">
+          Due: ${t.due_date || "—"} | Effort: ${t.estimated_hours}h | Importance: ${t.importance}/10
+          ${t.cycle_warning ? " | Circular dependency!" : ""}
+        </div>
+      </div>`;
+    container.innerHTML += card;
+  });
+}
+</script>
+</body>
+</html>
